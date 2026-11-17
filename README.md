@@ -1,6 +1,18 @@
 # Hunter Virtual Input (HVI)
 
-New experimental backends: typed DirectInput mouse A/W, native Raw Input receive wrapper (no synthetic native handles), and explicitly loaded `hvi_runtime.dll`. See `analysis/reports/DirectInput_Mouse.md`, `RawInput_Backend.md`, `HVI_Runtime.md`, and `Compatibility_Matrix.md`. Transparent support for HVI-unaware applications and Runtime DirectInput keyboard are NOT implemented. CTest labels `unit` and `windows_integration` separate the automated scopes.
+Standalone Runtime now includes typed DirectInput keyboard and mouse A/W, virtual Win32 keyboard exports, authenticated-local-session IPC and a three-window Win32 GUI stand. Native Raw Input is receive-only: no synthetic native handles. Transparent support for HVI-unaware applications is NOT implemented.
+
+## Three-window GUI demo
+
+After building, run from the repository root:
+
+```powershell
+.\build\hvi_demo.exe
+```
+
+TEST A and TEST B are separate processes/sessions. In CONTROL select TEST A, enable Hold/toggle and click W; select TEST B and click S. Only the selected client's virtual Win32/DirectInput indicators change, even while CONTROL remains foreground. Move in the mouse pad to send relative motion to the selected target. BOTH sends separately to both; NONE sends no user input. Release All resets BOTH for safety. Physical-entry field, explicit KeyDown/KeyUp, left/right modifiers, mouse buttons/wheel, Reset Mouse and Disconnect are available. F2 in a viewer toggles clearly labelled native comparison. Scroll viewers to see event history.
+
+See `analysis/reports/HVI_GUI_Test_Stand.md`, `DirectInput_Keyboard.md`, and `HVI_Stability_Fixes.md` for architecture, manual checks and limitations.
 
 Experimental standalone Windows x64 C++17 input model and controlled multi-process test environment. No proprietary binaries, decompiled implementations or downloaded toolchains are included.
 
@@ -15,7 +27,7 @@ ctest --test-dir build --output-on-failure
 .\build\test_controller.exe 2
 ```
 
-Ensure compiler runtime DLLs are on PATH. Test scripts locate executables in `build`; adapt that path when using a multi-configuration generator.
+For MinGW builds CMake copies required runtime DLLs alongside the demo. Test scripts locate executables in `build`; adapt that path when using a multi-configuration generator. GUI integration requires an interactive unlocked Windows desktop and no other HVI demo running; it briefly moves the cursor.
 
 ## Controller
 
@@ -50,4 +62,4 @@ Desktop tests require an interactive Windows session. The focus test explicitly 
 
 Keyboard/mouse state, ordered bounded transition queues, a cooperative adapter interface and named-pipe routing are implemented. The probe substitutes only its own Win32 imports and methods on one owned DirectInput keyboard object. This is not OS-wide virtual hardware, arbitrary application support or game injection.
 
-IPC is synchronous and can block on a stalled peer. Default local pipe security is not production authentication. DirectInput substitution supports a fixed keyboard format, not full device emulation. Mouse state/buffers are logical, not a DirectInput mouse COM backend. See `analysis/reports/HVI_Core_Progress.md` for tested features and remaining gaps; local paths in that historical report describe the original research workspace.
+New Runtime transport has bounded overlapped waits, cancellation, per-session sequence checks and same-user/logon/session identity checks. Legacy probe servers remain synchronous. Runtime supports canonical DirectInput keyboard and mouse formats, not full native device emulation; foreground/exclusive and arbitrary formats are unsupported. DLL callers must release COM devices and shut down before unloading. See the new reports for current scope; `HVI_Core_Progress.md` is historical.

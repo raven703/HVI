@@ -1,0 +1,2 @@
+#include "gui_common.hpp"
+int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR,int){hvi::dpiAware();PROCESS_INFORMATION a{},b{},control{};if(!hvi::spawn(L"hvi_test_client.exe",L"1",a)||!hvi::spawn(L"hvi_test_client.exe",L"2",b)||!hvi::spawn(L"hvi_gui_controller.exe",L"",control)){MessageBoxW(nullptr,L"Could not start all HVI windows. Build all targets first.",L"HVI Demo",MB_ICONERROR);for(auto*p:{&a,&b,&control})if(p->hProcess){CloseHandle(p->hThread);CloseHandle(p->hProcess);}return 1;}for(auto*p:{&a,&b,&control}){CloseHandle(p->hThread);CloseHandle(p->hProcess);}return 0;}
