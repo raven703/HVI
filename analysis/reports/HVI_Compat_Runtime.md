@@ -1,5 +1,7 @@
 # Experimental hvi_compat.dll
 
+Event revision supersedes snapshot-only transition limitations below: bounded cursor-based command journal now drives transitions; snapshots are recovery only. See Event_Delivery_Reliability.md. General multi-thread SDL queue access, complete Push/Flush/Has/filter/watcher semantics remain unsupported.
+
 CONFIRMED: SDL's own SDL_DYNAMIC_API mechanism loads a dispatch module inside launcher-owned child processes. No CreateRemoteThread, remote memory writes, global hooks, protected-process access or Hunter changes. Launcher sets environment in its own process, starts two independent children with sessions 1/2, then clears variables before starting existing Control Panel. Test EXE is unchanged between native and compatibility runs. Startup initializes HVI via overridden SDL_Init; SDL_Quit shuts Runtime down before process exit.
 
 The module gets SDL's original implementation table through SDL_DYNAPI_entry before forwarding. It overrides selected SDL state/poll methods; it does NOT pretend these are native Windows keyboard state or hardware Raw Input. Runtime stores state; compatibility adapts it to the library interface. Physical keyboard/mouse events are filtered only within enabled child SDL input polling. Window/lifecycle events pass through. Foreground F12 toggles virtual/native behavior per process; no global keyboard blocking. This restores behavior, not physical DLL unloading: SDL retains dispatch pointers until exit.

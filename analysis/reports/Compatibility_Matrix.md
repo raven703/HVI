@@ -1,5 +1,7 @@
 # Compatibility matrix
 
+Event revision: bounded Runtime journal + SDL Poll/Peep/Wait/WaitTimeout/Pump adaptation implemented; see Event_Delivery_Reliability.md. Second independent SDL application and standalone DirectInput inspector remain UNKNOWN/UNIMPLEMENTED. No EVE attachment performed.
+
 | Feature | Status | Evidence / limitation |
 |---|---|---|
 | Typed mouse Device8A/W | CONFIRMED scoped x64 | mouse unit test, canonical formats only |

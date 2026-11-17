@@ -1,5 +1,9 @@
 # SDL2 compatibility experiment
 
+## Event revision
+
+Journal-based delivery replaces snapshot-only transitions. See Event_Delivery_Reliability.md for capacities, recovery and remaining API limitations. Poll, Peep, Wait, WaitTimeout and Pump are now adapted; full SDL queue equivalence is NOT claimed. Second official example was located (testsprite minimal) but not built/run in this revision: UNKNOWN, not compatibility evidence.
+
 ## Version and provenance
 
 Official SDL2 2.30.11, revision SDL-release-2.30.11-0-gfa24d868a, built from unmodified source. SHA256 of official zip: a0b3e7ac5f708042683ff0f22e069bdf75563540c615f9854ecc9bc8913e2488. CMake FetchContent pins archive/hash. The test object's poll/update/render pattern follows public SDL examples; it includes only SDL and standard C++ headers, has no HVI imports, headers, pipes, session ID or input command channel.

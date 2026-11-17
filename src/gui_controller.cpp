@@ -17,7 +17,7 @@ void enqueue(hvi::Kind kind,int a=0,int b=0,unsigned destinations=99){std::lock_
 void worker(){
  hvi::RuntimeTransport a(1),b(2);auto heartbeat=GetTickCount64();
  for(;;){std::deque<Command> batch;{std::unique_lock<std::mutex> l(mutex);cv.wait_for(l,std::chrono::milliseconds(75),[]{return stopping||!commands.empty();});if(stopping)break;batch.swap(commands);}
-  for(auto&c:batch){for(int i=0;i<2;++i)if(c.targets&(1u<<i)){auto& t=i?b:a;if(c.disconnect)t.disconnect();else t.send(c.kind,c.a,c.b);}}
+  for(auto&c:batch){if(c.a==-1000){for(int n=0;n<1000;++n){for(auto*t:{&a,&b}){t->send(hvi::Kind::Key,'W',1);t->send(hvi::Kind::Key,'W',0);t->send(hvi::Kind::Button,0,1);t->send(hvi::Kind::Button,0,0);t->send(hvi::Kind::Relative,1,-1);}if(n%100==0){a.send(hvi::Kind::Wheel,120,120);b.send(hvi::Kind::Wheel,-120,-120);}}a.send(hvi::Kind::Key,'W',1);a.disconnect();b.send(hvi::Kind::Snapshot);Sleep(30);a.send(hvi::Kind::Snapshot);continue;}for(int i=0;i<2;++i)if(c.targets&(1u<<i)){auto& t=i?b:a;if(c.disconnect)t.disconnect();else t.send(c.kind,c.a,c.b);}}
   if(GetTickCount64()-heartbeat>=150){a.send(hvi::Kind::Snapshot);b.send(hvi::Kind::Snapshot);heartbeat=GetTickCount64();}
   std::wostringstream s;s<<L"TEST A: "<<(a.connected()?L"CONNECTED":L"OFFLINE")<<L" sent="<<a.sent<<L" ACK="<<a.acks<<L" errors="<<a.errors<<L" last="<<a.lastError<<L" latency="<<a.latencyMs<<L"ms\r\nTEST B: "<<(b.connected()?L"CONNECTED":L"OFFLINE")<<L" sent="<<b.sent<<L" ACK="<<b.acks<<L" errors="<<b.errors<<L" last="<<b.lastError<<L" latency="<<b.latencyMs<<L"ms";
   {std::lock_guard<std::mutex> l(mutex);status=s.str();for(auto&c:batch){logs.push_back(hvi::stamp()+L" target="+std::to_wstring(c.targets)+L" kind="+std::to_wstring(static_cast<DWORD>(c.kind))+L" a="+std::to_wstring(c.a)+L" b="+std::to_wstring(c.b));if(logs.size()>20)logs.pop_front();}}
@@ -52,9 +52,10 @@ LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){switch(m){
  physical=add(L"EDIT",L"Click here: physical keyboard",WS_BORDER|ES_READONLY,Physical,10,148,420,27);oldEdit=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(physical,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(inputProc)));
  add(L"BUTTON",L"LMB",0,ButtonBase,10,183,60,28);add(L"BUTTON",L"RMB",0,ButtonBase+1,75,183,60,28);add(L"BUTTON",L"MMB",0,ButtonBase+2,140,183,60,28);add(L"BUTTON",L"Wheel +",0,WheelUp,205,183,70,28);add(L"BUTTON",L"Wheel -",0,WheelDown,280,183,70,28);add(L"BUTTON",L"Reset Mouse",0,ResetMouse,355,183,95,28);
  mouseZone=add(L"HviMousePad",L"",WS_BORDER,0,10,220,430,100);diagnostic=add(L"EDIT",L"",WS_BORDER|ES_MULTILINE|ES_READONLY|WS_VSCROLL,0,470,10,400,300);SetTimer(h,1,100,nullptr);io=std::thread(worker);layout();return 0;}
+ case WM_KEYDOWN:if(w==VK_F6){enqueue(hvi::Kind::Snapshot,-1000,0,3);return 0;}break;
  case WM_SIZE:layout();return 0;
  case WM_DPICHANGED:{auto*r=reinterpret_cast<RECT*>(l);SetWindowPos(h,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);layout();return 0;}
- case WM_COMMAND:{int id=LOWORD(w);if(id==Target&&HIWORD(w)==CBN_SELCHANGE){int choice=static_cast<int>(SendMessageW(targetBox,CB_GETCURSEL,0,0));target=choice==0?1:choice==1?2:choice==2?3:0;}
+ case WM_COMMAND:{int id=LOWORD(w);if(id==500){enqueue(hvi::Kind::Snapshot,-1000,0,3);return 0;}if(id==Target&&HIWORD(w)==CBN_SELCHANGE){int choice=static_cast<int>(SendMessageW(targetBox,CB_GETCURSEL,0,0));target=choice==0?1:choice==1?2:choice==2?3:0;}
  else if(id>=KeyBase&&id<KeyBase+13){int key=keyValues[id-KeyBase];if(SendMessageW(holdBox,BM_GETCHECK,0,0)==BST_CHECKED){physicalKey(key,!held[key]);}else {enqueue(hvi::Kind::Key,key,1);enqueue(hvi::Kind::Key,key,0);}}
  else if(id==Down||id==Up){int i=static_cast<int>(SendMessageW(keyBox,CB_GETCURSEL,0,0));if(i>=0&&i<13)physicalKey(keyValues[i],id==Down);}
  else if(id==Release){enqueue(hvi::Kind::Reset,0,0,3);std::fill(std::begin(held),std::end(held),false);}
