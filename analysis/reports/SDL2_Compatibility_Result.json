@@ -1,0 +1,136 @@
+{
+  "checks": [
+    [
+      true,
+      "native baseline physical W moves square"
+    ],
+    [
+      true,
+      "compat B: W moves only A square"
+    ],
+    [
+      true,
+      "both SDL windows background"
+    ],
+    [
+      true,
+      "independent simultaneous object movement"
+    ],
+    [
+      true,
+      "independent crosshair reaction"
+    ],
+    [
+      true,
+      "virtual mouse does not move Windows cursor"
+    ],
+    [
+      true,
+      "LMB changes only A color"
+    ],
+    [
+      true,
+      "wheel changes only B scale"
+    ],
+    [
+      true,
+      "BOTH moves both squares"
+    ],
+    [
+      true,
+      "NONE does not move objects"
+    ],
+    [
+      true,
+      "disconnect clears held key in SDL"
+    ],
+    [
+      true,
+      "reconnect restores SDL input"
+    ],
+    [
+      true,
+      "disable restores native physical input"
+    ],
+    [
+      true,
+      "B survives A close"
+    ]
+  ],
+  "nativeTrace": {
+    "mode": "TRACE_NATIVE",
+    "pid": 2976,
+    "polls": 139,
+    "virtualEvents": 0,
+    "GetKeyboardState": 4,
+    "GetAsyncKeyState": 10,
+    "GetKeyState": 6,
+    "RegisterRawInputDevices": 0,
+    "GetRawInputData": 0,
+    "SetCapture": 0,
+    "ClipCursor": 0,
+    "SetCursorPos": 0,
+    "messages": 25,
+    "keyMessages": 5,
+    "mouseMessages": 2,
+    "rawMessages": 0,
+    "dinput8Loaded": 0
+  },
+  "nativeRelativeTrace": {
+    "mode": "TRACE_NATIVE",
+    "pid": 14748,
+    "polls": 80,
+    "virtualEvents": 0,
+    "GetKeyboardState": 4,
+    "GetAsyncKeyState": 10,
+    "GetKeyState": 6,
+    "RegisterRawInputDevices": 2,
+    "GetRawInputData": 0,
+    "SetCapture": 0,
+    "ClipCursor": 2,
+    "SetCursorPos": 3,
+    "messages": 23,
+    "keyMessages": 2,
+    "mouseMessages": 3,
+    "rawMessages": 0,
+    "dinput8Loaded": 0
+  },
+  "compatTrace1": {
+    "mode": "B_SDL_DYNAPI",
+    "pid": 5636,
+    "polls": 711,
+    "virtualEvents": 14,
+    "GetKeyboardState": 7,
+    "GetAsyncKeyState": 20,
+    "GetKeyState": 9,
+    "RegisterRawInputDevices": 0,
+    "GetRawInputData": 0,
+    "SetCapture": 0,
+    "ClipCursor": 0,
+    "SetCursorPos": 0,
+    "messages": 36,
+    "keyMessages": 5,
+    "mouseMessages": 2,
+    "rawMessages": 0,
+    "dinput8Loaded": 0
+  },
+  "compatTrace2": {
+    "mode": "B_SDL_DYNAPI",
+    "pid": 17448,
+    "polls": 750,
+    "virtualEvents": 10,
+    "GetKeyboardState": 4,
+    "GetAsyncKeyState": 10,
+    "GetKeyState": 6,
+    "RegisterRawInputDevices": 0,
+    "GetRawInputData": 0,
+    "SetCapture": 0,
+    "ClipCursor": 0,
+    "SetCursorPos": 0,
+    "messages": 18,
+    "keyMessages": 0,
+    "mouseMessages": 2,
+    "rawMessages": 0,
+    "dinput8Loaded": 0
+  }
+}

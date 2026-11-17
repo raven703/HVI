@@ -1,0 +1,11 @@
+# Experimental hvi_compat.dll
+
+CONFIRMED: SDL's own SDL_DYNAMIC_API mechanism loads a dispatch module inside launcher-owned child processes. No CreateRemoteThread, remote memory writes, global hooks, protected-process access or Hunter changes. Launcher sets environment in its own process, starts two independent children with sessions 1/2, then clears variables before starting existing Control Panel. Test EXE is unchanged between native and compatibility runs. Startup initializes HVI via overridden SDL_Init; SDL_Quit shuts Runtime down before process exit.
+
+The module gets SDL's original implementation table through SDL_DYNAPI_entry before forwarding. It overrides selected SDL state/poll methods; it does NOT pretend these are native Windows keyboard state or hardware Raw Input. Runtime stores state; compatibility adapts it to the library interface. Physical keyboard/mouse events are filtered only within enabled child SDL input polling. Window/lifecycle events pass through. Foreground F12 toggles virtual/native behavior per process; no global keyboard blocking. This restores behavior, not physical DLL unloading: SDL retains dispatch pointers until exit.
+
+PARTIAL: owned-process SDL2 IAT diagnostics count selected OS APIs and dispatch messages without changing their results. They do not intercept dynamically resolved APIs, record every call stack, prove absence of all DirectInput use, or authorize arbitrary modules. Module remains loaded until exit; explicit SDL_Quit is mandatory. Bridge uses snapshots and main-thread SDL assumption, not full buffered event fidelity. Mode change/reconnect clears virtual held state; transient events may be missed. Runtime remains existing shared per-process core, not rewritten.
+
+UNSUPPORTED: universal Win32 API compatibility, native DirectInput factory hooking, virtual HRAWINPUT, automatic attachment to external processes, live unloading while dispatch table points into module.
+
+UNKNOWN: abnormal app termination cleanup beyond OS process cleanup, other SDL versions, untested applications/APIs. Mode A remains the previous explicit HVI GUI client; mode B is only the SDL dynapi experiment. Never infer B from mode A/IPC ACK.

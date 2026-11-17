@@ -4,6 +4,35 @@ Standalone Runtime now includes typed DirectInput keyboard and mouse A/W, virtua
 
 ## Three-window GUI demo
 
+## SDL2 compatibility experiment (separate from cooperative GUI)
+
+```powershell
+.\build\hvi_sdl_demo.exe
+```
+
+Close the original HVI demo first (same sessions 1/2). Two independent SDL-only
+test EXEs open with existing Control Panel. Select A/B, enable Hold/toggle and
+send W/S/D; squares move in background. Mouse pad moves crosshair; LMB changes
+color, RMB reverses movement, wheel changes scale. Foreground SDL + F12 switches
+that process to native input; R toggles relative mouse mode. Native baseline:
+`.\build\sdl_input_test.exe`.
+
+SDL 2.30.11 source is fetched from official archive with pinned SHA256 during
+configure (network needed on first build). Disable with `-DHVI_SDL_EXPERIMENT=OFF`.
+Compatibility uses SDL's opt-in `SDL_DYNAMIC_API` loader, not remote injection.
+The SDL test EXE has no HVI API, headers, sessions or command pipe. This is a
+selected-SDL-API experiment, NOT generic Windows/DirectInput/Raw Input compatibility.
+Read the four compatibility/focus reports in `analysis/reports` before reuse.
+
+```powershell
+ctest --test-dir build -R sdl_compatibility --output-on-failure
+```
+
+Requires an interactive unlocked desktop, briefly sends native keys/moves cursor.
+Checks actual object results from a read-only JSON output, not IPC ACKs.
+
+## Original cooperative GUI
+
 After building, run from the repository root:
 
 ```powershell
