@@ -1,0 +1,9 @@
+# DirectInput Keyboard A/W
+
+CONFIRMED scoped implementation: IDirectInputDevice8A/W ABI via typed inheritance; only IUnknown and matching Device8 interface advertised. Atomic reference counting; shared Runtime feed; live-object diagnostics. HviCreateKeyboard export returns requested A/W interface. Canonical c_dfDIKeyboard only, 256-byte state, background/nonexclusive cooperative mode, Acquire/Unacquire, DIPROP_BUFFERSIZE 0..256, buffered peek/drain and overflow indication. Unsupported interfaces, formats and methods return errors.
+
+Protocol VK transitions map through a fixed US physical layout to DIK scan-code offsets (E0 -> upper half), with explicit Pause/SysRq. Aggregate Shift/Ctrl/Alt are omitted from DIK data; left/right keys have distinct offsets. Immediate state is held-state only, not Win32 toggle bits. Repeated down does not create duplicate transitions. Reset emits releases; disconnect generation clears old device queues and state. Independent COM readers keep independent cursors/buffers.
+
+keyboard_tests exercises both A/W, QI/null/wrong interface, format/acquisition errors, DIK W, all left/right modifiers, repeat suppression, buffered peek/drain, two objects, reset/generation and upstream overflow. Runtime stability and GUI integration verify factory and real DLL API results.
+
+PARTIAL: VK protocol cannot distinguish every physical scan key (e.g. numpad Enter versus main Enter). International layouts, arbitrary formats, foreground/exclusive policies, notifications, force feedback, legacy interfaces and full native device enumeration are UNSUPPORTED. No DirectInput8Create interception or transparent application integration is claimed. Caller must release all COM objects and call Shutdown before unloading DLL.

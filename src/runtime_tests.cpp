@@ -18,6 +18,10 @@ int main(int argc,char**argv){UINT id=argc>1?static_cast<UINT>(std::stoul(argv[1
  pipe=CreateFileW(name.c_str(),GENERIC_READ|GENERIC_WRITE,0,nullptr,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,nullptr);
  if(pipe==INVALID_HANDLE_VALUE)++errors;else {sequence=0;send(hvi::Kind::Key,'C',1);keyboard(keys);if(!keys['C'])++errors;CloseHandle(pipe);Sleep(650);keyboard(keys);if(keys['C'])++errors;}
  }
+ auto createKeyboard=reinterpret_cast<HRESULT(WINAPI*)(BOOL,void**)>(GetProcAddress(dll,"HviCreateKeyboard"));
+ IDirectInputDevice8W* kb=nullptr;
+ if(!createKeyboard||FAILED(createKeyboard(TRUE,reinterpret_cast<void**>(&kb))))++errors;
+ else {if(FAILED(kb->SetDataFormat(&c_dfDIKeyboard))||FAILED(kb->Acquire()))++errors;BYTE state[256]{};if(FAILED(kb->GetDeviceState(256,state)))++errors;kb->Unacquire();if(kb->Release()!=0)++errors;}
  mouse->Unacquire();mouse->Release();stop();if(!FreeLibrary(dll))++errors;
  std::cout<<"runtime session "<<id<<" errors="<<errors<<"\n";return errors?1:0;
 }
