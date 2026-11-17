@@ -1,0 +1,10 @@
+/build/
+/tools/installed/
+/tools/python_packages/
+__pycache__/
+*.pyc
+*.log
+*.exe
+*.dll
+*.zip
+*.7z
