@@ -62,10 +62,12 @@ Uint32 SDLCALL relativeMouse(int*x,int*y){if(initialized&&enabled){pump();if(x)*
 int SDLCALL setRelative(SDL_bool value){relative=value!=SDL_FALSE;if(initialized&&enabled)return 0;return native.SDL_SetRelativeMouseMode(value);}
 SDL_bool SDLCALL getRelative(){return initialized&&enabled?(relative?SDL_TRUE:SDL_FALSE):native.SDL_GetRelativeMouseMode();}
 SDL_Window* SDLCALL createWindow(const char*t,int x,int y,int w,int h,Uint32 f){window=native.SDL_CreateWindow(t,x,y,w,h,f);return window;}
-int SDLCALL init(Uint32 flags){int rc=native.SDL_Init(flags);if(rc<0)return rc;
+int startRuntime(){
  if(!traceOnly&&!initialized){const char* id=getenv("HVI_COMPAT_SESSION");UINT session=id?static_cast<UINT>(strtoul(id,nullptr,10)):0;if(!session||!HviInitialize(session)){native.SDL_Quit();return native.SDL_SetError("HVI compatibility session initialization failed");}HviJournalRead r;HviReadJournal(&r,nullptr,0);cursor=r.latest;pending.clear();keys.fill(0);buttons=0;deltaX=deltaY=0;enabled=true;initialized=true;}
- return rc;
+ return 0;
 }
+int SDLCALL init(Uint32 flags){int rc=native.SDL_Init(flags);return rc<0?rc:startRuntime();}
+int SDLCALL videoInit(const char* driver){int rc=native.SDL_VideoInit(driver);return rc<0?rc:startRuntime();}
 void SDLCALL quit(){if(initialized){HviShutdown();initialized=false;}pending.clear();keys.fill(0);buttons=0;window=nullptr;compatTraceWrite(tracePath.c_str(),traceOnly?"TRACE_NATIVE":"B_SDL_DYNAPI",polls,eventCount);native.SDL_Quit();}
 }
 extern "C" __declspec(dllexport) Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 version,void* table,Uint32 size){
@@ -74,7 +76,7 @@ extern "C" __declspec(dllexport) Sint32 SDLCALL SDL_DYNAPI_entry(Uint32 version,
  auto entry=reinterpret_cast<Sint32(SDLCALL*)(Uint32,void*,Uint32)>(GetProcAddress(GetModuleHandleW(L"SDL2.dll"),"SDL_DYNAPI_entry"));
  if(!entry||version!=1||size>sizeof(SdlTable)||entry(version,&native,sizeof(native))<0)return -1;
  const char* trace=getenv("HVI_COMPAT_TRACE");tracePath=trace?trace:"";traceOnly=getenv("HVI_TRACE_ONLY")!=nullptr;compatTraceInstall(GetModuleHandleW(L"SDL2.dll"));
- SdlTable altered=native;altered.SDL_Init=init;altered.SDL_Quit=quit;altered.SDL_PollEvent=poll;altered.SDL_CreateWindow=createWindow;
+ SdlTable altered=native;altered.SDL_Init=init;altered.SDL_VideoInit=videoInit;altered.SDL_Quit=quit;altered.SDL_PollEvent=poll;altered.SDL_CreateWindow=createWindow;
  if(!traceOnly){altered.SDL_PumpEvents=pumpEvents;altered.SDL_PeepEvents=peep;altered.SDL_WaitEvent=waitEvent;altered.SDL_WaitEventTimeout=waitTimeout;altered.SDL_GetKeyboardState=keyboard;altered.SDL_GetMouseState=mouse;altered.SDL_GetRelativeMouseState=relativeMouse;altered.SDL_SetRelativeMouseMode=setRelative;altered.SDL_GetRelativeMouseMode=getRelative;}
  std::memcpy(table,&altered,size);return 0;
 }

@@ -1,0 +1,11 @@
+# Second SDL2 application
+
+Date: 2026-11-17. Official SDL 2.30.11 `test/testintersections.c`, compiled directly from the existing SHA256-pinned FetchContent source. No copied source, HVI includes, input edits or instrumentation in this application. SDL2test is the official support library. Target: `sdl_official_intersections`.
+
+CONFIRMED: the first run exposed a real portability gap: SDLTest_CommonInit uses SDL_VideoInit, not SDL_Init, so no HVI session existed. Added only the necessary VideoInit entry adapter sharing existing runtime startup. Journal and event APIs otherwise unchanged.
+
+CONFIRMED: `second_sdl_app` runs two instances via SDL_DYNAMIC_API, sessions 94/95, controller in foreground. Each receives five rapid L down/up pairs and five right-button drags. The unchanged application writes `adding line` only when its input handler creates a line. Counts progress [5,0], [5,5], [10,5], [10,10], proving independent keyboard and mouse reactions, not just transport acknowledgements. No delay between transitions; five actions avoid the application's fixed 16-line capacity. Software renderer, zero random background objects. Both windows were verified background before sending.
+
+Evidence: build/second_sdl_result.json, build/second_sdl_0.log, build/second_sdl_1.log (generated, not committed). Inspector snapshots of both owned processes also succeeded. Run via CTest; it requires an unlocked desktop and no competing session users.
+
+Comparison: sdl_input_test has richer observation JSON and validates movement, color, wheel, reconnect and native toggle; event_delivery_reliability exercises 1000 pairs and overflow. The official app independently confirms keyboard/button/motion portability and revealed an initialization-path limitation our own app did not. UNKNOWN here: wheel reaction (no equivalent application action), long bursts beyond its line capacity, all SDL applications and all initialization/lifecycle combinations. Not a generic Windows/DirectInput compatibility result.
