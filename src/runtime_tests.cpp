@@ -15,6 +15,8 @@ int main(int argc,char**argv){UINT id=argc>1?static_cast<UINT>(std::stoul(argv[1
  BYTE keys[256]{};keyboard(keys);if(keys[id%2?'A':'B']!=128||keys[id%2?'B':'A'])++errors;
  DIDEVICEOBJECTDATA events[16]{};DWORD n=16;if(FAILED(mouse->GetDeviceData(sizeof(events[0]),events,&n,0))||n!=4)++errors;
  CloseHandle(pipe);Sleep(650);keyboard(keys);if(keys['A']||keys['B'])++errors;
+ pipe=CreateFileW(name.c_str(),GENERIC_READ|GENERIC_WRITE,0,nullptr,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,nullptr);
+ if(pipe==INVALID_HANDLE_VALUE)++errors;else {sequence=0;send(hvi::Kind::Key,'C',1);keyboard(keys);if(!keys['C'])++errors;CloseHandle(pipe);Sleep(650);keyboard(keys);if(keys['C'])++errors;}
  }
  mouse->Unacquire();mouse->Release();stop();if(!FreeLibrary(dll))++errors;
  std::cout<<"runtime session "<<id<<" errors="<<errors<<"\n";return errors?1:0;

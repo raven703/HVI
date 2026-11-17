@@ -1,5 +1,7 @@
 # Hunter Virtual Input (HVI)
 
+New experimental backends: typed DirectInput mouse A/W, native Raw Input receive wrapper (no synthetic native handles), and explicitly loaded `hvi_runtime.dll`. See `analysis/reports/DirectInput_Mouse.md`, `RawInput_Backend.md`, `HVI_Runtime.md`, and `Compatibility_Matrix.md`. Transparent support for HVI-unaware applications and Runtime DirectInput keyboard are NOT implemented. CTest labels `unit` and `windows_integration` separate the automated scopes.
+
 Experimental standalone Windows x64 C++17 input model and controlled multi-process test environment. No proprietary binaries, decompiled implementations or downloaded toolchains are included.
 
 ## Build

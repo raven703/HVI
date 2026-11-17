@@ -30,7 +30,8 @@ template<bool Wide> class DirectInputMouse final:public std::conditional_t<Wide,
   std::lock_guard<std::mutex> l(feed->mutex);auto&s=feed->state;
   if(generation!=feed->generation){generation=feed->generation;cursor=0;x=y=z=0;queue.clear();overflow=false;}
   auto events=s.mouseEvents.read(256,true);
-  if(!events.empty()&&cursor&&events.front().order>cursor+1)overflow=true;
+  // Global order includes keyboard records; gaps alone are not mouse loss.
+  if(s.mouseEvents.overflowed()&&!events.empty()&&cursor<events.front().order)overflow=true;
   for(auto&t:events)if(t.order>cursor){
    DWORD offset=0;bool supported=true;
    if(t.kind==Kind::Relative)offset=t.control?DIMOFS_Y:DIMOFS_X;
