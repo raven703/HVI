@@ -5,6 +5,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import ctypes as c
+from ctypes import wintypes as w
+import os
 
 exe = pathlib.Path(sys.argv[1]).resolve()
 
@@ -48,6 +51,32 @@ with tempfile.TemporaryDirectory(prefix='hvi_inspector_') as directory:
     assert any(item['path'] == str(copy) for item in target['modules'])
     assert len({item['path'] for item in target['modules']}) == len(target['modules'])
     assert target['focus'] and 1100 <= data['elapsed_ms'] < 4000
+    assert data['diagnostic_revision'] == 2
+    assert sum(target['focus_samples'].values()) > 0
+    assert target['window_samples'] > 0 and target['window_changes']
+
+    # Inspect a real owned top-level window without sending it any messages.
+    user = c.WinDLL('user32', use_last_error=True)
+    user.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD,
+                                    c.c_int, c.c_int, c.c_int, c.c_int,
+                                    w.HWND, w.HMENU, w.HINSTANCE, c.c_void_p]
+    user.CreateWindowExW.restype = w.HWND
+    user.DestroyWindow.argtypes = [w.HWND]
+    window = user.CreateWindowExW(0, 'STATIC', 'PRIVATE TITLE NOT TO BE LOGGED',
+                                 0, 0, 0, 100, 100, None, None, None, None)
+    assert window, c.get_last_error()
+    try:
+        run([os.getpid(), '100', '--json', path])
+        data = read(path)
+        target, = data['targets']
+        items = target['window_changes'][0]['snapshot']['items']
+        item, = [item for item in items if item['hwnd'] == str(window)]
+        assert item['class'] == 'Static' and item['thread_id'] > 0
+        assert item['gui_thread_status'] == 'CONFIRMED'
+        assert item['visible'] is False and item['minimized'] is False
+        assert 'PRIVATE TITLE' not in path.read_text(encoding='utf-8')
+    finally:
+        user.DestroyWindow(window)
 
     run(['--list-eve', '--json', path])
     data = read(path)

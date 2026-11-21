@@ -51,6 +51,19 @@ extern "C" __declspec(dllexport) void WINAPI HviShutdown(){std::lock_guard<std::
 extern "C" __declspec(dllexport) void WINAPI HviSetVirtual(BOOL enabled){std::lock_guard<std::mutex> l(feed->mutex);virtualMode=enabled!=FALSE;feed->state={};++feed->generation;hvi::Event e;e.kind=hvi::Kind::Reset;append(e);}
 extern "C" __declspec(dllexport) BOOL WINAPI HviGetKeyboardState(PBYTE out){if(!out){SetLastError(ERROR_INVALID_PARAMETER);return FALSE;}std::lock_guard<std::mutex> l(feed->mutex);if(!virtualMode)return GetKeyboardState(out);for(int k=0;k<256;k++)out[k]=feed->state.keyboard.byte(k);return TRUE;}
 extern "C" __declspec(dllexport) SHORT WINAPI HviGetAsyncKeyState(int key){if(key<0||key>=256){SetLastError(ERROR_INVALID_PARAMETER);return 0;}std::lock_guard<std::mutex> l(feed->mutex);if(!virtualMode)return GetAsyncKeyState(key);return static_cast<SHORT>(feed->state.keyboard.async(key));}
+extern "C" __declspec(dllexport) SHORT WINAPI HviGetKeyState(int key){
+ if(key<0||key>=256){SetLastError(ERROR_INVALID_PARAMETER);return 0;}
+ std::lock_guard<std::mutex> l(feed->mutex);if(!virtualMode)return GetKeyState(key);
+ BYTE state=feed->state.keyboard.byte(key);return static_cast<SHORT>(((state&128)?0x8000:0)|(state&1));
+}
+extern "C" __declspec(dllexport) BOOL WINAPI HviGetMouseState(HviMouseState* out){
+ if(!out||out->size!=sizeof(*out)||out->version!=1){SetLastError(ERROR_INVALID_PARAMETER);return FALSE;}
+ std::lock_guard<std::mutex> l(feed->mutex);
+ if(!virtualMode){SetLastError(ERROR_NOT_SUPPORTED);return FALSE;}
+ *out={};out->generation=feed->generation;auto& m=feed->state.mouse;
+ out->x=m.x;out->y=m.y;out->dx=m.dx;out->dy=m.dy;out->wheel=m.wheel;out->horizontalWheel=m.horizontalWheel;
+ for(int i=0;i<5;++i)out->buttons[i]=m.buttons[i]?128:0;return TRUE;
+}
 extern "C" __declspec(dllexport) HRESULT WINAPI HviCreateMouse(BOOL wide,void**out){if(!out)return E_POINTER;*out=nullptr;if(!virtualMode)return DIERR_UNSUPPORTED;try{if(wide)*out=static_cast<IDirectInputDevice8W*>(new hvi::DirectInputMouse<true>(feed));else *out=static_cast<IDirectInputDevice8A*>(new hvi::DirectInputMouse<false>(feed));return S_OK;}catch(...){return E_OUTOFMEMORY;}}
 extern "C" __declspec(dllexport) HRESULT WINAPI HviCreateKeyboard(BOOL wide,void**out){if(!out)return E_POINTER;*out=nullptr;if(!virtualMode)return DIERR_UNSUPPORTED;try{if(wide)*out=static_cast<IDirectInputDevice8W*>(new hvi::DirectInputKeyboard<true>(feed));else *out=static_cast<IDirectInputDevice8A*>(new hvi::DirectInputKeyboard<false>(feed));return S_OK;}catch(...){return E_OUTOFMEMORY;}}
 extern "C" __declspec(dllexport) BOOL WINAPI HviGetSnapshot(HviSnapshot* out){if(!out||out->size!=sizeof(*out)||out->version!=1){SetLastError(ERROR_INVALID_PARAMETER);return FALSE;}std::lock_guard<std::mutex> l(feed->mutex);*out=diagnostics;out->generation=feed->generation;out->liveObjects=feed->liveObjects;out->timeouts=hvi::ioCounters.timeouts;out->ioErrors=hvi::ioCounters.errors;out->pendingCancellations=hvi::ioCounters.cancellationsPending;auto& m=feed->state.mouse;out->x=m.x;out->y=m.y;out->dx=m.dx;out->dy=m.dy;out->wheel=m.wheel;for(int i=0;i<5;++i)out->buttons[i]=m.buttons[i]?128:0;return TRUE;}

@@ -7,7 +7,7 @@
 #include <mutex>
 #include <algorithm>
 namespace hvi {
-enum class Kind:uint32_t { Key=1,Button,Absolute,Relative,Reset,Snapshot,Stop,Wheel,Focus,ResetMouse };
+enum class Kind:uint32_t { Key=1,Button,Absolute,Relative,Reset,Snapshot,Stop,Wheel,Focus,ResetMouse,ReleaseAll };
 struct Event {uint32_t magic=0x31495648,version=1,session=0,sequence=0;Kind kind=Kind::Reset;int32_t a=0,b=0;};
 static_assert(sizeof(Event)==28);
 struct Transition {uint64_t order;uint32_t sequence;Kind kind;int32_t control;int64_t value;uint64_t timestamp;};
@@ -65,7 +65,11 @@ struct State {
     case Kind::ResetMouse:
      for(int i=0;i<5;i++)if(mouse.buttons[i]){mouse.buttons[i]=false;emit(e,Kind::Button,i,0);}
      mouse={};++mouseEpoch;break;
-   case Kind::Reset:case Kind::Stop:
+    case Kind::ReleaseAll:
+     for(int i=0;i<256;i++)if(keyboard.keys[i]){keyboard.set(i,false);emit(e,Kind::Key,i,0);}
+     for(int i=0;i<5;i++)if(mouse.buttons[i]){mouse.buttons[i]=false;emit(e,Kind::Button,i,0);}
+     keyboard.asyncPressed.fill(false);break;
+    case Kind::Reset:case Kind::Stop:
     for(int i=0;i<256;i++)if(keyboard.keys[i]){keyboard.set(i,false);emit(e,Kind::Key,i,0);}
     for(int i=0;i<5;i++)if(mouse.buttons[i]){mouse.buttons[i]=false;emit(e,Kind::Button,i,0);}
      mouse={};++mouseEpoch;keyboard.toggled.fill(false);keyboard.asyncPressed.fill(false);break;

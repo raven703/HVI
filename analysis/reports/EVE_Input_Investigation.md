@@ -1,5 +1,32 @@
 # EVE input investigation
 
+## Active message experiment: operator session 2026-11-21 08:15 UTC
+
+EVE_Key_Post_Result_2026-11-21.md records ESC A/B/BOTH PostMessage trials with
+three manual yes confirmations and W Down/Up A. Successful queueing and visible
+ESC response support the tested UI message-delivery path without observed
+foreground changes at send boundaries. They do not identify the full physical
+keyboard backend or any mouse backend; Raw Input/DirectInput use remains UNKNOWN.
+
+## Manual phases recorded: 2026-11-21 07:54:43 UTC
+
+EVE_Manual_Phases_2026-11-21.md analyzes the 120031ms operator recording.
+Both clients now have measured foreground/background samples with restored
+windows and nonzero GUI mouse-capture states. This supersedes the minimized-only
+behavior coverage below. Input backend and background input acceptance still
+remain UNKNOWN: no key/button events or application response oracle were recorded.
+Next step is correlating the operator's actual actions/responses with this timeline.
+
+## Latest session: two clients, 2026-11-21 07:49 UTC
+
+See EVE_Two_Client_Passive_2026-11-21.md and the accompanying redacted JSON.
+PIDs 4888 and 21584 were observed concurrently; both were minimized/background
+throughout the 30s window. Foreground/input acceptance remains unmeasured.
+Inspector diagnostic revision 2 adds top-level window/GUI-thread snapshots.
+**No keyboard or mouse input backend is confirmed.** Win32, Raw Input and
+DirectInput execution all remain UNKNOWN. This session supersedes the prior
+single-client inventory as the latest observation, not as execution evidence.
+
 ## Passive session: 2026-11-21 (supersedes the no-process observation below)
 
 At 07:26:17 UTC, `--eve 5000 --json build/eve-passive.json` found nine name-based

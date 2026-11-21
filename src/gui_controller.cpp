@@ -1,5 +1,5 @@
 #include "gui_common.hpp"
-#include "runtime_transport.hpp"
+#include "input_session.hpp"
 #include <windowsx.h>
 #include <thread>
 #include <condition_variable>
@@ -10,19 +10,19 @@ enum {Target=100,Hold=101,Release=102,Down=103,Up=104,Physical=105,ResetMouse=10
 HWND window,targetBox,holdBox,keyBox,physical,diagnostic,mouseZone;HFONT font;
 std::thread io;std::mutex mutex;std::condition_variable cv;bool stopping=false;unsigned target=1;
 struct Command{unsigned targets;hvi::Kind kind;int a,b;bool disconnect=false;};std::deque<Command> commands;
-std::wstring status=L"Connecting...";std::deque<std::wstring> logs;uint64_t queued=0,dropped=0;bool held[256]{};unsigned heldTarget[256]{};POINT lastPoint{};bool tracking=false;
+std::wstring status=L"Connecting...";std::deque<std::wstring> logs;uint64_t queued=0,dropped=0;bool held[256]{};bool buttonHeld[2][3]{};unsigned heldTarget[256]{};POINT lastPoint{};bool tracking=false;
 struct Geometry{HWND hwnd;int x,y,w,h;};std::vector<Geometry> controls;POINT lastDelta{};
 int keyValues[]{'W','A','S','D',VK_LSHIFT,VK_LCONTROL,VK_LMENU,VK_SPACE,VK_RETURN,VK_ESCAPE,VK_RSHIFT,VK_RCONTROL,VK_RMENU};
-void enqueue(hvi::Kind kind,int a=0,int b=0,unsigned destinations=99){std::lock_guard<std::mutex> lock(mutex);if(commands.size()>=4096){++dropped;commands.clear();commands.push_back({3,hvi::Kind::Reset,0,0});}commands.push_back({destinations==99?target:destinations,kind,a,b});++queued;cv.notify_one();}
+void enqueue(hvi::Kind kind,int a=0,int b=0,unsigned destinations=99){std::lock_guard<std::mutex> lock(mutex);if(commands.size()>=4096){++dropped;commands.clear();commands.push_back({3,hvi::Kind::ReleaseAll,0,0});}commands.push_back({destinations==99?target:destinations,kind,a,b});++queued;cv.notify_one();}
 void worker(){
- hvi::RuntimeTransport a(1),b(2);auto heartbeat=GetTickCount64();
+ hvi::InputSession a(1),b(2);auto heartbeat=GetTickCount64();
  for(;;){std::deque<Command> batch;{std::unique_lock<std::mutex> l(mutex);cv.wait_for(l,std::chrono::milliseconds(75),[]{return stopping||!commands.empty();});if(stopping)break;batch.swap(commands);}
-  for(auto&c:batch){if(c.a==-1000){for(int n=0;n<1000;++n){for(auto*t:{&a,&b}){t->send(hvi::Kind::Key,'W',1);t->send(hvi::Kind::Key,'W',0);t->send(hvi::Kind::Button,0,1);t->send(hvi::Kind::Button,0,0);t->send(hvi::Kind::Relative,1,-1);}if(n%100==0){a.send(hvi::Kind::Wheel,120,120);b.send(hvi::Kind::Wheel,-120,-120);}}a.send(hvi::Kind::Key,'W',1);a.disconnect();b.send(hvi::Kind::Snapshot);Sleep(30);a.send(hvi::Kind::Snapshot);continue;}for(int i=0;i<2;++i)if(c.targets&(1u<<i)){auto& t=i?b:a;if(c.disconnect)t.disconnect();else t.send(c.kind,c.a,c.b);}}
-  if(GetTickCount64()-heartbeat>=150){a.send(hvi::Kind::Snapshot);b.send(hvi::Kind::Snapshot);heartbeat=GetTickCount64();}
+  for(auto&c:batch){if(c.a==-1000){for(int n=0;n<1000;++n){for(auto*t:{&a,&b}){t->Submit(hvi::Kind::Key,'W',1);t->Submit(hvi::Kind::Key,'W',0);t->Submit(hvi::Kind::Button,0,1);t->Submit(hvi::Kind::Button,0,0);t->Submit(hvi::Kind::Relative,1,-1);}if(n%100==0){a.Submit(hvi::Kind::Wheel,120,120);b.Submit(hvi::Kind::Wheel,-120,-120);}}a.Submit(hvi::Kind::Key,'W',1);a.disconnect();b.Submit(hvi::Kind::Snapshot);Sleep(30);a.Submit(hvi::Kind::Snapshot);continue;}for(int i=0;i<2;++i)if(c.targets&(1u<<i)){auto& t=i?b:a;if(c.disconnect)t.disconnect();else t.Submit(c.kind,c.a,c.b);}}
+  if(GetTickCount64()-heartbeat>=150){a.Submit(hvi::Kind::Snapshot);b.Submit(hvi::Kind::Snapshot);heartbeat=GetTickCount64();}
   std::wostringstream s;s<<L"TEST A: "<<(a.connected()?L"CONNECTED":L"OFFLINE")<<L" sent="<<a.sent<<L" ACK="<<a.acks<<L" errors="<<a.errors<<L" last="<<a.lastError<<L" latency="<<a.latencyMs<<L"ms\r\nTEST B: "<<(b.connected()?L"CONNECTED":L"OFFLINE")<<L" sent="<<b.sent<<L" ACK="<<b.acks<<L" errors="<<b.errors<<L" last="<<b.lastError<<L" latency="<<b.latencyMs<<L"ms";
   {std::lock_guard<std::mutex> l(mutex);status=s.str();for(auto&c:batch){logs.push_back(hvi::stamp()+L" target="+std::to_wstring(c.targets)+L" kind="+std::to_wstring(static_cast<DWORD>(c.kind))+L" a="+std::to_wstring(c.a)+L" b="+std::to_wstring(c.b));if(logs.size()>20)logs.pop_front();}}
  }
- a.send(hvi::Kind::Reset);b.send(hvi::Kind::Reset);
+ a.ReleaseAll();b.ReleaseAll();
 }
 void physicalKey(int key,bool down){if(key<0||key>255)return;if(down){if(!held[key]){held[key]=true;heldTarget[key]=target;enqueue(hvi::Kind::Key,key,1,target);}}else if(held[key]){enqueue(hvi::Kind::Key,key,0,heldTarget[key]);held[key]=false;}}
 WNDPROC oldEdit=nullptr;
@@ -58,12 +58,12 @@ LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){switch(m){
  case WM_COMMAND:{int id=LOWORD(w);if(id==500){enqueue(hvi::Kind::Snapshot,-1000,0,3);return 0;}if(id==Target&&HIWORD(w)==CBN_SELCHANGE){int choice=static_cast<int>(SendMessageW(targetBox,CB_GETCURSEL,0,0));target=choice==0?1:choice==1?2:choice==2?3:0;}
  else if(id>=KeyBase&&id<KeyBase+13){int key=keyValues[id-KeyBase];if(SendMessageW(holdBox,BM_GETCHECK,0,0)==BST_CHECKED){physicalKey(key,!held[key]);}else {enqueue(hvi::Kind::Key,key,1);enqueue(hvi::Kind::Key,key,0);}}
  else if(id==Down||id==Up){int i=static_cast<int>(SendMessageW(keyBox,CB_GETCURSEL,0,0));if(i>=0&&i<13)physicalKey(keyValues[i],id==Down);}
- else if(id==Release){enqueue(hvi::Kind::Reset,0,0,3);std::fill(std::begin(held),std::end(held),false);}
- else if(id==ResetMouse)enqueue(hvi::Kind::ResetMouse);
+ else if(id==Release){enqueue(hvi::Kind::ReleaseAll,0,0,3);std::fill(std::begin(held),std::end(held),false);for(auto& buttons:buttonHeld)std::fill(std::begin(buttons),std::end(buttons),false);}
+ else if(id==ResetMouse){enqueue(hvi::Kind::ResetMouse);for(int i=0;i<2;++i)if(target&(1u<<i))std::fill(std::begin(buttonHeld[i]),std::end(buttonHeld[i]),false);}
  else if(id==WheelUp||id==WheelDown)enqueue(hvi::Kind::Wheel,id==WheelUp?120:-120);
- else if(id>=ButtonBase&&id<ButtonBase+3){int button=id-ButtonBase;static bool down[3]{};down[button]=!down[button];enqueue(hvi::Kind::Button,button,down[button]);}
+ else if(id>=ButtonBase&&id<ButtonBase+3){int button=id-ButtonBase;for(int i=0;i<2;++i)if(target&(1u<<i)){buttonHeld[i][button]=!buttonHeld[i][button];enqueue(hvi::Kind::Button,button,buttonHeld[i][button],1u<<i);}}
  else if(id==Disconnect){std::lock_guard<std::mutex> lock(mutex);commands.push_back({target,hvi::Kind::Snapshot,0,0,true});cv.notify_one();}return 0;}
- case WM_TIMER:{std::wstring s;{std::lock_guard<std::mutex> lock(mutex);s=status+L"\r\nCommands queued="+std::to_wstring(queued)+L" queue resets="+std::to_wstring(dropped)+L"\r\nForeground HWND="+std::to_wstring(reinterpret_cast<UINT_PTR>(GetForegroundWindow()))+L"\r\nMouse pad X/Y="+std::to_wstring(lastPoint.x)+L"/"+std::to_wstring(lastPoint.y)+L" delta="+std::to_wstring(lastDelta.x)+L"/"+std::to_wstring(lastDelta.y)+L"\r\nRelease All resets BOTH for safety.\r\n";for(auto& line:logs)s+=line+L"\r\n";}SetWindowTextW(diagnostic,s.c_str());return 0;}
+ case WM_TIMER:{std::wstring s;{std::lock_guard<std::mutex> lock(mutex);s=status+L"\r\nCommands queued="+std::to_wstring(queued)+L" queue resets="+std::to_wstring(dropped)+L"\r\nForeground HWND="+std::to_wstring(reinterpret_cast<UINT_PTR>(GetForegroundWindow()))+L"\r\nMouse pad X/Y="+std::to_wstring(lastPoint.x)+L"/"+std::to_wstring(lastPoint.y)+L" delta="+std::to_wstring(lastDelta.x)+L"/"+std::to_wstring(lastDelta.y)+L"\r\nRelease All releases BOTH for safety.\r\n";for(auto& line:logs)s+=line+L"\r\n";}SetWindowTextW(diagnostic,s.c_str());return 0;}
  case WM_CLOSE:DestroyWindow(h);return 0;
  case WM_DESTROY:KillTimer(h,1);{std::lock_guard<std::mutex> lock(mutex);stopping=true;}cv.notify_one();if(io.joinable())io.join();DeleteObject(font);PostQuitMessage(0);return 0;
  }return DefWindowProcW(h,m,w,l);}

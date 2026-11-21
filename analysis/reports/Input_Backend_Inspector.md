@@ -1,5 +1,30 @@
 # Input Backend Inspector
 
+## Two-client diagnostic revision 2: 2026-11-21
+
+Existing schema version 1 gains additive `diagnostic_revision: 2` fields:
+`focus_samples` counts foreground/background/unknown polls per target;
+`window_samples` counts attempted window snapshots; `window_changes` stores the
+first and changed top-level snapshots. No CLI change. EnumWindows, GetClassNameW,
+GetWindowThreadProcessId, GetWindowRect, IsWindowVisible/IsIconic/IsWindowEnabled
+and GetGUIThreadInfo are read-only observations; no target messages are sent.
+Window titles are deliberately not read or stored. Each window includes HWND,
+TID, class, visibility/minimized/enabled state, rectangle and GUI-thread
+active/focus/capture HWNDs, flags and query errors. Failed GUI queries have
+UNKNOWN status and null handles, distinct from a successful zero handle.
+
+Window cadence is nominally 250ms; module snapshots and scheduling can delay it.
+Counters are samples, not exact duration or a delivery oracle. EnumWindows covers
+top-level windows on the inspector's desktop, not child/message-only windows or
+all threads. Per-thread focus/capture is not proof of input API calls, foreground
+ownership or background input acceptance. Snapshots are non-atomic and can race
+window destruction. Existing process/PID-lifetime limitations still apply.
+
+Tests: backend_inspector_smoke and backend_inspector_cli pass. CLI regression now
+creates an owned hidden Static window, verifies HWND/TID/class/GUI state and
+checks that a private window title is absent from JSON. The inspector test does
+not activate or send input to EVE. See EVE_Two_Client_Passive_2026-11-21.md.
+
 ## 2026-11-21 update (supersedes CLI/validation below)
 
 `input_backend_inspector.exe <pid|self|--eve|--list-eve> [duration-ms] [--json path]`

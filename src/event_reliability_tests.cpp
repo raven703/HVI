@@ -1,6 +1,6 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
-#include "runtime_transport.hpp"
+#include "input_session.hpp"
 #include <iostream>
 int main(){
  SetEnvironmentVariableA("SDL_DYNAMIC_API","hvi_compat.dll");SetEnvironmentVariableA("HVI_COMPAT_SESSION","93");SDL_SetMainReady();int errors=0;
@@ -13,7 +13,17 @@ int main(){
  check(kd==1000&&ku==1000&&md==1000&&mu==1000,"1000 ordered key/click pairs");check(SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W]==0,"released state");
  if(!t.send(hvi::Kind::Snapshot)){Sleep(20);check(t.send(hvi::Kind::Snapshot),"reconnect after drain idle");}while(SDL_PollEvent(&e)){}
  check(t.send(hvi::Kind::Wheel,120,-120),"wheel send");SDL_PumpEvents();check(SDL_PeepEvents(&e,1,SDL_GETEVENT,SDL_MOUSEWHEEL,SDL_MOUSEWHEEL)==1&&e.wheel.x==-1&&e.wheel.y==1,"horizontal vertical wheel");
- t.send(hvi::Kind::Absolute,750,550);check(SDL_WaitEvent(&e)&&e.type==SDL_MOUSEMOTION&&e.motion.x==750&&e.motion.y==550,"absolute resized coordinates");
+  t.send(hvi::Kind::Absolute,750,550);check(SDL_WaitEvent(&e)&&e.type==SDL_MOUSEMOTION&&e.motion.x==750&&e.motion.y==550,"absolute resized coordinates");
+  t.disconnect();Sleep(50);SDL_PumpEvents();while(SDL_PollEvent(&e)){}
+  hvi::InputSession slave(93,GetCurrentProcessId());
+  check(slave.MouseMove(345,234)&&slave.KeyDown('W')&&slave.MouseDown(1),"Slave API SDL holds");
+  int mx=0,my=0;check(SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W]&&SDL_GetMouseState(&mx,&my)==SDL_BUTTON(SDL_BUTTON_RIGHT)&&mx==345&&my==234,"Slave API SDL state");
+  while(SDL_PollEvent(&e)){}
+  check(slave.ReleaseAll(),"Slave SDL release");SDL_PumpEvents();
+  check(!SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W]&&SDL_GetMouseState(&mx,&my)==0&&mx==345&&my==234,"SDL release preserves coordinates");
+  int releaseKeys=0,releaseButtons=0;while(SDL_PollEvent(&e)){releaseKeys+=e.type==SDL_KEYUP;releaseButtons+=e.type==SDL_MOUSEBUTTONUP;}
+  check(releaseKeys==1&&releaseButtons==1,"SDL journal release events");
+  slave.disconnect();Sleep(50);SDL_PumpEvents();check(t.send(hvi::Kind::Snapshot),"legacy reconnect");
  // Force upstream loss without pumping; recover to held snapshot, never replay tail.
  for(int i=0;i<17000;++i)t.send(hvi::Kind::Key,'A',i%2==0);t.send(hvi::Kind::Key,'W',1);SDL_PumpEvents();check(SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W],"overflow snapshot recovery");
  t.disconnect();Sleep(50);SDL_PumpEvents();check(!SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W],"disconnect release");

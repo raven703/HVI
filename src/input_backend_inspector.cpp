@@ -57,7 +57,9 @@ struct Process {DWORD pid;std::wstring name;};
 struct Target {
  DWORD pid;std::wstring name;std::set<std::wstring> seen;
  bool modulesComplete=false;unsigned snapshots=0;
- std::vector<std::string> modules,focus,errors;
+ std::vector<std::string> modules,focus,errors,windows;
+ std::string previousWindows;
+ unsigned foregroundSamples=0,backgroundSamples=0,unknownSamples=0,windowSamples=0;
 };
 std::string array(const std::vector<std::string>& values){
  std::string out="[";
@@ -68,6 +70,41 @@ std::string timestamp(){
  SYSTEMTIME t{};GetSystemTime(&t);char out[32];
  std::snprintf(out,sizeof(out),"%04u-%02u-%02uT%02u:%02u:%02uZ",t.wYear,t.wMonth,t.wDay,t.wHour,t.wMinute,t.wSecond);
  return out;
+}
+std::string hwnd(HWND window){return quote(std::to_string(reinterpret_cast<ULONG_PTR>(window)));}
+struct WindowContext {DWORD pid;std::vector<std::string> records;};
+BOOL CALLBACK inspectWindow(HWND window,LPARAM param){
+ auto& context=*reinterpret_cast<WindowContext*>(param);DWORD pid=0;
+ DWORD thread=GetWindowThreadProcessId(window,&pid);
+ if(pid!=context.pid)return TRUE;
+ wchar_t cls[256]{};SetLastError(ERROR_SUCCESS);
+ int length=GetClassNameW(window,cls,256);DWORD classError=length?0:GetLastError();
+ GUITHREADINFO info{};info.cbSize=sizeof(info);SetLastError(ERROR_SUCCESS);
+ BOOL gui=thread?GetGUIThreadInfo(thread,&info):FALSE;
+ DWORD guiError=gui?0:GetLastError();
+ RECT rect{};BOOL haveRect=GetWindowRect(window,&rect);
+ context.records.push_back("{\"hwnd\":"+hwnd(window)+",\"thread_id\":"+std::to_string(thread)+
+  ",\"class\":"+quote(utf8(cls))+",\"class_error\":"+std::to_string(classError)+
+  ",\"visible\":"+(IsWindowVisible(window)?"true":"false")+",\"minimized\":"+(IsIconic(window)?"true":"false")+
+  ",\"enabled\":"+(IsWindowEnabled(window)?"true":"false")+
+  ",\"rect\":"+(haveRect?("["+std::to_string(rect.left)+","+std::to_string(rect.top)+","+std::to_string(rect.right)+","+std::to_string(rect.bottom)+"]"):"null")+
+  ",\"gui_thread_status\":"+quote(gui?"CONFIRMED":"UNKNOWN")+",\"gui_thread_error\":"+std::to_string(guiError)+
+  ",\"gui_flags\":"+(gui?std::to_string(info.flags):"null")+
+  ",\"active_hwnd\":"+(gui?hwnd(info.hwndActive):"null")+
+  ",\"focus_hwnd\":"+(gui?hwnd(info.hwndFocus):"null")+
+  ",\"capture_hwnd\":"+(gui?hwnd(info.hwndCapture):"null")+"}");
+ return TRUE;
+}
+void windows(Target& target,ULONGLONG time){
+ WindowContext context{target.pid,{}};SetLastError(ERROR_SUCCESS);
+ BOOL ok=EnumWindows(inspectWindow,reinterpret_cast<LPARAM>(&context));
+ DWORD code=ok?0:GetLastError();++target.windowSamples;
+ std::string state="{\"enumeration\":"+quote(ok?"CONFIRMED":"UNKNOWN")+",\"win32_error\":"+std::to_string(code)+",\"items\":"+array(context.records)+"}";
+ if(target.windows.empty()||state!=target.previousWindows){
+  target.windows.push_back("{\"t_ms\":"+std::to_string(time)+",\"snapshot\":"+state+"}");
+  target.previousWindows=state;
+  std::cout<<"WINDOW_SNAPSHOT pid="<<target.pid<<" t_ms="<<time<<" count="<<context.records.size()<<" error="<<code<<'\n';
+ }
 }
 void error(Target& target,const char* operation,DWORD code,ULONGLONG time){
  target.errors.push_back("{\"t_ms\":"+std::to_string(time)+",\"operation\":"+quote(operation)+",\"win32_error\":"+std::to_string(code)+'}');
@@ -151,11 +188,12 @@ int wmain(int argc,wchar_t** argv){
   std::cout<<"LIMITATIONS: module presence is not API execution; absence is not proof of non-use.\n"
    <<"DirectInput8 calls=UNKNOWN RawInput calls=UNKNOWN Win32 keyboard/mouse calls=UNKNOWN\n"
    <<"Raw Input registrations are current-application scoped, not queried for foreign processes.\n"
-   <<"Focus sampled every 50ms; intermediate transitions and thread focus are UNKNOWN.\n";
-  auto start=GetTickCount64();ULONGLONG next=0;HWND previous=nullptr;DWORD previousOwner=0;bool first=true;
+   <<"Foreground sampled every 50ms; top-level windows/GUI thread state every 250ms; input acceptance UNKNOWN.\n";
+  auto start=GetTickCount64();ULONGLONG next=0,nextWindows=0;HWND previous=nullptr;DWORD previousOwner=0;bool first=true;
   if(!list&&!targets.empty())do{
    auto now=GetTickCount64()-start;HWND foreground=GetForegroundWindow();DWORD owner=0;
    if(foreground)GetWindowThreadProcessId(foreground,&owner);
+   for(auto& target:targets){if(!owner)++target.unknownSamples;else if(owner==target.pid)++target.foregroundSamples;else ++target.backgroundSamples;}
    if(first||foreground!=previous||owner!=previousOwner){
     for(auto& target:targets){
      std::string state=owner?(owner==target.pid?"foreground":"background"):"UNKNOWN";
@@ -165,6 +203,7 @@ int wmain(int argc,wchar_t** argv){
     first=false;previous=foreground;previousOwner=owner;
    }
    if(now>=next){for(auto& target:targets)modules(target,now);next=GetTickCount64()-start+1000;}
+   if(now>=nextWindows){for(auto& target:targets)windows(target,GetTickCount64()-start);nextWindows=GetTickCount64()-start+250;}
    auto elapsed=GetTickCount64()-start;
    if(elapsed>=duration)break;
    Sleep(static_cast<DWORD>((duration-elapsed)<50?(duration-elapsed):50));
@@ -176,6 +215,8 @@ int wmain(int argc,wchar_t** argv){
     ",\"module_enumeration\":"+quote(target.modulesComplete?"CONFIRMED":"UNKNOWN")+
     ",\"complete_snapshots\":"+std::to_string(target.snapshots)+",\"modules\":"+array(target.modules)+
     ",\"focus\":"+array(target.focus)+",\"errors\":"+array(target.errors)+
+    ",\"focus_samples\":{\"foreground\":"+std::to_string(target.foregroundSamples)+",\"background\":"+std::to_string(target.backgroundSamples)+",\"unknown\":"+std::to_string(target.unknownSamples)+"}"+
+    ",\"window_samples\":"+std::to_string(target.windowSamples)+",\"window_changes\":"+array(target.windows)+
     ",\"mechanisms\":{\"win32\":\"UNKNOWN\",\"directinput\":\"UNKNOWN\",\"raw_input\":\"UNKNOWN\"}}");
   }
   if(eve&&inventoryError)complete=false;
@@ -183,9 +224,9 @@ int wmain(int argc,wchar_t** argv){
   if(!output.empty()){
    file<<"{\"schema_version\":1,\"started_utc\":"<<quote(started)<<",\"mode\":"<<quote(list?"list-eve":eve?"eve":"pid")
     <<",\"pointer_bits\":64,\"requested_duration_ms\":"<<(list?0:duration)<<",\"elapsed_ms\":"<<GetTickCount64()-start
-    <<",\"focus_interval_ms\":50,\"module_interval_ms\":1000,\"process_inventory_error\":"<<inventoryError
+    <<",\"diagnostic_revision\":2,\"focus_interval_ms\":50,\"module_interval_ms\":1000,\"window_interval_ms\":250,\"process_inventory_error\":"<<inventoryError
     <<",\"candidates\":"<<array(candidates)<<",\"targets\":"<<array(observations)<<",\"exit_code\":"<<result
-    <<",\"limitations\":[\"Names are candidates, not verified EVE identity\",\"Module presence is not API execution; absence is not proof of non-use\",\"Fixed startup targets; PID reuse and process lifetime are UNKNOWN\",\"First-seen modules only; unloads and transient loads may be missed\",\"Sampled desktop foreground is not thread focus or input acceptance\",\"Raw Input registrations are current-application scoped\",\"Paths may contain personal information; redact before sharing\"]}\n";
+    <<",\"limitations\":[\"Names are candidates, not verified EVE identity\",\"Module presence is not API execution; absence is not proof of non-use\",\"Fixed startup targets; PID reuse and process lifetime are UNKNOWN\",\"First-seen modules only; unloads and transient loads may be missed\",\"Sampled foreground/GUI thread state is not input acceptance or API execution\",\"Window enumeration covers top-level windows on this desktop, not message-only/child windows or every thread\",\"Raw Input registrations are current-application scoped\",\"Paths may contain personal information; redact before sharing\"]}\n";
    file.flush();
    if(!file){std::cerr<<"Cannot write JSON output\n";return 3;}
   }

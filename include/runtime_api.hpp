@@ -18,6 +18,17 @@ HVI_API void WINAPI HviShutdown();
 HVI_API void WINAPI HviSetVirtual(BOOL enabled);
 HVI_API BOOL WINAPI HviGetKeyboardState(PBYTE out);
 HVI_API SHORT WINAPI HviGetAsyncKeyState(int key);
+// Current virtual state, not Win32's message-queue historical GetKeyState semantics.
+HVI_API SHORT WINAPI HviGetKeyState(int key);
+struct HviMouseState {
+ DWORD size=sizeof(HviMouseState),version=1;
+ uint64_t generation=0;
+ int64_t x=0,y=0,dx=0,dy=0,wheel=0,horizontalWheel=0;
+ BYTE buttons[5]{},reserved[3]{};
+};
+// Non-destructive application-local coordinates and cumulative deltas/wheels.
+// This is deliberately not a GetCursorPos screen-coordinate replacement.
+HVI_API BOOL WINAPI HviGetMouseState(HviMouseState* out);
 HVI_API HRESULT WINAPI HviCreateMouse(BOOL wide,void** out);
 HVI_API HRESULT WINAPI HviCreateKeyboard(BOOL wide,void** out);
 HVI_API BOOL WINAPI HviGetSnapshot(HviSnapshot* out);

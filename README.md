@@ -1,5 +1,31 @@
 # Hunter Virtual Input (HVI)
 
+## Input Compatibility Layer (primary architecture)
+
+The main path is `InputSession -> Runtime IPC -> process-local virtual State ->
+Win32/DirectInput/SDL application adapters`, NOT PostMessage/SendInput/focus
+switching. Slave-facing interface: E:\python\HVI\include\input_session.hpp.
+KeyDown/Up, MouseMove/Relative, MouseDown/Up, Wheel and position-preserving
+ReleaseAll share the existing Runtime, journal and per-process devices.
+Keep Heartbeat active while holding input. Use a separate session per target.
+The PostMessage tool below is an isolated experiment, not an architecture replacement.
+
+Audit, API contract, gaps and gated EVE integration plan:
+E:\python\HVI\analysis\reports\Input_Compatibility_Layer.md.
+No transparent EVE Runtime compatibility or authorized attachment is established.
+
+## Experimental EVE keyboard PostMessage test
+
+Run `E:\python\HVI\build\eve_key_post.exe` in PowerShell. Explicitly select
+A/B/BOTH, then `key ESC` and `press`; manually record menu response using
+`confirm yes`, `confirm no` or `confirm unknown`. Only then test A/W/S in a safe
+UI context. No recipient is selected by default. `down`, `up`, `release`,
+`refresh`, `list`, `quit` are supported. Sender never activates target windows.
+Queue acceptance is not proof of game processing. Log:
+E:\python\HVI\build\eve_key_post.log. Use `release` before `quit`; abrupt exit
+cannot guarantee release. See E:\python\HVI\analysis\reports\EVE_Key_Post_Experiment.md
+for the full manual A/B/BOTH procedure and measured owned-window test results.
+
 Standalone Runtime now includes typed DirectInput keyboard and mouse A/W, virtual Win32 keyboard exports, authenticated-local-session IPC and a three-window Win32 GUI stand. Native Raw Input is receive-only: no synthetic native handles. Transparent support for HVI-unaware applications is NOT implemented.
 
 ## Validation update: 2026-11-21
