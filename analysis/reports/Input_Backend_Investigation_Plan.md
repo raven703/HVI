@@ -1,5 +1,11 @@
 # Input backend investigation (no EVE attachment)
 
+2026-11-21 status: standalone **passive** inspector is implemented and validated;
+see Input_Backend_Inspector.md and EVE_Input_Investigation.md. The historical
+"UNSUPPORTED standalone inspector" note below applies to API execution tracing,
+not the new snapshot/foreground observer. API-level backend identification still
+remains UNKNOWN. No invasive tracing, injection or protection bypass is planned.
+
 CONFIRMED: existing owned-SDL compat_trace instrument counts selected Win32 imports and messages. It is not a separate universal inspection program and must not be loaded into EVE. No EVE process access, injection, hooks or security bypass performed.
 
 Required observations before backend selection:

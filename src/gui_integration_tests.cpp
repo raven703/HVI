@@ -3,6 +3,12 @@
 #include "gui_test_protocol.hpp"
 #include <iostream>
 namespace {
+struct CursorGuard {
+ POINT saved{};RECT clip{};bool active=false;
+ CursorGuard(){GetCursorPos(&saved);GetClipCursor(&clip);}
+ ~CursorGuard(){if(active){ClipCursor(&clip);SetCursorPos(saved.x,saved.y);}}
+ void park(POINT point){RECT r{point.x,point.y,point.x+1,point.y+1};active=true;if(!ClipCursor(&r))throw std::runtime_error("cannot stabilize test cursor");SetCursorPos(point.x,point.y);}
+};
 GuiObservation reply;bool received=false;
 LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){if(m==WM_COPYDATA){auto*c=reinterpret_cast<COPYDATASTRUCT*>(l);if(c&&c->dwData==HVI_GUI_QUERY&&c->cbData==sizeof(reply)){memcpy(&reply,c->lpData,sizeof(reply));received=true;return TRUE;}}return DefWindowProcW(h,m,w,l);}
 GuiObservation query(HWND receiver,HWND client){received=false;COPYDATASTRUCT c{HVI_GUI_QUERY,0,nullptr};DWORD_PTR result=0;SendMessageTimeoutW(client,WM_COPYDATA,reinterpret_cast<WPARAM>(receiver),reinterpret_cast<LPARAM>(&c),SMTO_ABORTIFHUNG,1000,&result);if(!received)throw std::runtime_error("GUI API observation unavailable");return reply;}
@@ -20,8 +26,16 @@ int main(){
   auto qa=[&]{return query(receiver,aw);};auto qb=[&]{return query(receiver,bw);};
   SetForegroundWindow(cw);target(cw,0);key(cw,0,true);auto x=qa(),y=qb();check(x.win32['W']&&x.directInput[DIK_W]&&!y.win32['W']&&!y.directInput[DIK_W],"A W only via Win32 and DI API");
   target(cw,1);key(cw,2,true);x=qa();y=qb();check(y.win32['S']&&y.directInput[DIK_S]&&!x.win32['S']&&x.win32['W'],"B S while A holds W");key(cw,3,true);y=qb();check(y.directInput[DIK_D]&&qa().directInput[DIK_W],"independent simultaneous hold");
-  target(cw,0);HWND pad=FindWindowExW(cw,nullptr,L"HviMousePad",nullptr);POINT origin{30,35};ClientToScreen(pad,&origin);POINT saved;GetCursorPos(&saved);SetCursorPos(origin.x,origin.y);Sleep(100);click(cw,106);SetCursorPos(origin.x+20,origin.y+30);Sleep(250);x=qa();y=qb();check(x.runtime.x==20&&x.runtime.y==30&&y.runtime.x==0,"A mouse isolation");
-  target(cw,1);SetCursorPos(origin.x+15,origin.y+25);click(cw,301);y=qb();check(y.runtime.x==-5&&y.runtime.y==-5&&y.mouse.rgbButtons[1]&&!qa().mouse.rgbButtons[1],"B mouse/button isolation");SetCursorPos(saved.x,saved.y);
+  // Foreground activation can be denied by Windows. Keep this owned controller
+  // above the terminal during cursor testing, and verify actual pad hit-testing.
+  SetWindowPos(cw,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+  target(cw,0);HWND pad=FindWindowExW(cw,nullptr,L"HviMousePad",nullptr);if(!pad)throw std::runtime_error("mouse pad missing");
+  POINT origin{30,35};ClientToScreen(pad,&origin);CursorGuard cursor;cursor.park(origin);Sleep(100);
+  if(WindowFromPoint(origin)!=pad)throw std::runtime_error("mouse pad occluded on interactive desktop");
+  click(cw,106);cursor.park(POINT{origin.x+20,origin.y+30});Sleep(250);x=qa();y=qb();std::cout<<"mouse A="<<x.runtime.x<<","<<x.runtime.y<<" B="<<y.runtime.x<<","<<y.runtime.y<<"\n";check(x.runtime.x==20&&x.runtime.y==30&&y.runtime.x==0,"A mouse isolation");
+  target(cw,1);cursor.park(POINT{origin.x+15,origin.y+25});click(cw,301);y=qb();std::cout<<"mouse B="<<y.runtime.x<<","<<y.runtime.y<<" button="<<int(y.mouse.rgbButtons[1])<<"\n";check(y.runtime.x==-5&&y.runtime.y==-5&&y.mouse.rgbButtons[1]&&!qa().mouse.rgbButtons[1],"B mouse/button isolation");
+  ClipCursor(&cursor.clip);SetCursorPos(cursor.saved.x,cursor.saved.y);cursor.active=false;
+  SetWindowPos(cw,HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
   target(cw,2);key(cw,7,true);check(qa().directInput[DIK_SPACE]&&qb().directInput[DIK_SPACE],"BOTH independent ACK sequences");
   target(cw,3);key(cw,8,true);check(!qa().directInput[DIK_RETURN]&&!qb().directInput[DIK_RETURN],"NONE no delivery");
   Sleep(700);check(qa().win32['W']&&qb().win32['S'],"heartbeat preserves background hold");click(cw,102);x=qa();y=qb();bool clear=true;for(auto k:x.directInput)clear&=k==0;for(auto k:y.directInput)clear&=k==0;for(auto k:y.mouse.rgbButtons)clear&=k==0;check(clear,"Release All API state clear");

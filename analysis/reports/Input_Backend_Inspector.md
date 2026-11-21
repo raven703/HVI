@@ -1,5 +1,48 @@
 # Input Backend Inspector
 
+## 2026-11-21 update (supersedes CLI/validation below)
+
+`input_backend_inspector.exe <pid|self|--eve|--list-eve> [duration-ms] [--json path]`
+supports Unicode command-line paths and UTF-8 JSON schema version 1. The original
+PID/self syntax remains supported. `--help` documents usage. Duration is decimal
+100..600000 ms (default 5000); signed, trailing-junk and duplicate arguments fail.
+
+`--list-eve` inventories exact case-insensitive names exefile.exe/eve.exe (client
+candidates), eve-online.exe (launcher candidates), eve_crashmon.exe (monitor
+candidates). Identity is always UNKNOWN; this is not signature/product validation.
+`--eve` samples every discovered client candidate, excluding launcher/monitor
+processes. The target list is fixed at startup; restart/PID reuse is not resolved.
+Explicit PID works for any permitted process. No EVE launch or foreground change
+is performed. Inventory is observational, not a command channel.
+
+JSON contains UTC start, elapsed/requested time, candidates, PID/name, first-seen
+module names/paths, number of complete module snapshots, foreground PID/HWND/state
+changes, Win32 errors and mechanism statuses. HWND is a decimal string to avoid
+JSON number precision loss. Null foreground is UNKNOWN, not background. Module
+snapshots occur approximately every second; foreground polling every 50ms (not
+hard real-time). An observation is CONFIRMED only within these sampling limits.
+No unload tracking; no cross-process Raw Input registration query. All execution
+statuses stay UNKNOWN. Output is written at normal completion; interruption can
+leave an empty/incomplete file. Existing destination is truncated. Redact paths
+and inventory before sharing; raw live-process data is retained under build only.
+
+Exit codes: 0 = list succeeded, or at least one complete module enumeration for
+**each** selected target; 1 = missing client candidates/incomplete observation;
+2 = invalid CLI; 3 = output/internal error. Neither 0 nor module presence proves
+input API execution. Errors remain in the JSON even after a successful retry.
+
+Safety: only Toolhelp snapshot handles and desktop foreground reads; no
+OpenProcess, target memory read/write, debugger, input hooks, injection, remote
+threads, HVI runtime initialization or elevation. ERROR_BAD_LENGTH retries are
+bounded to five attempts; snapshot handles use RAII.
+
+Validation: backend_inspector_smoke and backend_inspector_cli passed in full
+15/15 CTest. CLI test covers strict arguments, Unicode executable/output paths,
+UTF-8 JSON parsing, repeated snapshots, module deduplication, focus state,
+terminated owned PID, invalid output directory and deterministic name discovery
+using an owned inspector copy called exefile.exe. It never launches EVE. Live
+candidate observation is documented separately in EVE_Input_Investigation.md.
+
 Date: 2026-11-17. Standalone Windows x64 console executable `input_backend_inspector`. No HVI runtime initialization or compatibility DLL loading. Usage from build directory:
 
 ```powershell

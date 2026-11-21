@@ -1,5 +1,40 @@
 # EVE input investigation
 
+## Passive session: 2026-11-21 (supersedes the no-process observation below)
+
+At 07:26:17 UTC, `--eve 5000 --json build/eve-passive.json` found nine name-based
+candidates: seven eve-online.exe launcher processes, one eve_crashmon.exe and
+one exefile.exe client candidate, PID 4888. Only the client was module-sampled.
+First image path was `C:\CCP\EVE Online\tq\bin64\exefile.exe`; no signature,
+publisher or executable-version verification was performed. Discovery therefore
+remains candidate identity, not authenticated product identification.
+
+CONFIRMED within the session: five complete module snapshots, 299 unique loaded
+module paths, no enumeration errors. USER32.dll, win32u.dll and
+textinputframework.dll were present. dinput8.dll and SDL2.dll were not observed
+in those snapshots; that does not establish non-use. The single recorded focus
+state was background (foreground PID 19200); no foreground transition for the
+client was observed. No automated foreground activation, input delivery or EVE
+interaction was attempted. Raw paths remain local in build/eve-passive.json and
+build/eve-passive.log, not committed.
+
+| Mechanism | Status | Evidence / next permitted step |
+|---|---|---|
+| Win32 keyboard/mouse calls or messages | UNKNOWN | user32/win32u presence is not execution evidence |
+| DirectInput keyboard/mouse | UNKNOWN | No attributable API/device/acquisition evidence |
+| Raw Input registration/read | UNKNOWN | No attributable registration/read evidence |
+| SDL input backend | UNKNOWN | No SDL execution evidence; owned SDL results are unrelated |
+| Background input acceptance / foreground policy | UNKNOWN | Background sampling alone is not an input acceptance test |
+| Module inventory and sampled background state | CONFIRMED | Limited to the bounded observation above |
+
+Repeat only with an authorized normally running client. Record inspector version
+(Git commit), UTC, verified PID/image, duration and user-described scenario; a
+user may manually switch focus during observation. Do not synthesize EVE input.
+Correlate only user-provided existing logs or documented application diagnostics.
+Without attributable execution evidence, retain UNKNOWN and do not select or
+load an HVI compatibility backend. Do not add intrusive tracing to resolve an
+UNKNOWN result. Hunter and EVE files/process state were not modified.
+
 Date: 2026-11-17.
 
 CONFIRMED local observation: process-name inventory (`Get-Process`, names matching eve or exefile) returned no running candidate during this stage. No EVE PID was supplied. This is not proof EVE is uninstalled, nor a comprehensive executable-identity search. No EVE launch, attachment, injection, memory access, process modification or protection bypass performed.
